@@ -1,5 +1,6 @@
 package io.github.toansh.mcp.mcp;
 
+import io.github.toansh.mcp.auth.Caller;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import jakarta.ws.rs.Consumes;
@@ -13,14 +14,15 @@ import jakarta.ws.rs.core.MediaType;
 @Produces(MediaType.APPLICATION_JSON)
 public class McpResource {
 
-    static final String ANONYMOUS_CALLER = "anonymous";
-
     @Inject
     McpDispatcher dispatcher;
+
+    @Inject
+    Caller caller;
 
     @POST
     @Transactional
     public JsonRpcResponse handle(JsonRpcRequest request) {
-        return dispatcher.dispatch(request, ANONYMOUS_CALLER);
+        return dispatcher.dispatch(request, caller.getPrincipal());
     }
 }

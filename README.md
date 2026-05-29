@@ -55,6 +55,25 @@ Exposing tools to an AI is not the same as exposing them to a logged-in human. T
 | `get_pod_logs` | `namespace`, `pod`, `lines` (≤500) | log lines | hard cap 500 lines, ≤30s window |
 | `describe_deployment` | `namespace`, `name` | replicas, status, last rollout | metadata only, no spec dump |
 
+## Authentication
+
+Every call to `/mcp` requires a bearer token:
+
+```
+Authorization: Bearer mcp_<random>
+```
+
+Tokens are random 32-byte secrets prefixed with `mcp_` (GitHub-style, so secret scanners can spot them in leaked diffs). The server only stores the **SHA-256 hash** of the token — the raw value never lives on disk. A token's `principal` becomes the `caller` recorded in every audit row, so a leaked or misused key is traceable to a single identity.
+
+`/q/health`, `/q/metrics`, `/q/openapi`, and `/q/swagger-ui` are left open for ops tooling.
+
+**Dev mode** (`mvn quarkus:dev`) auto-seeds a known key on first startup and prints the token to the log so the demo path works out-of-the-box. **Prod operators** insert keys via SQL — no auto-seed, no admin endpoint:
+
+```sql
+INSERT INTO api_keys (key_hash, principal, label, created_at, revoked)
+VALUES (encode(sha256('mcp_…'::bytea), 'hex'), 'ci-runner', 'github-actions', now(), false);
+```
+
 ## Stack
 
 | Layer | Choice | Why |
