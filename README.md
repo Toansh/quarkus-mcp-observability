@@ -2,7 +2,7 @@
 
 > Production-grade MCP server in Quarkus — safely expose your observability stack to AI assistants.
 
-**Status:** Design phase (May 2026). Implementation begins week of Jun 2.
+**Status:** Active development (May 2026). MCP dispatcher, bearer-token auth, Postgres audit log, and the first bounded tool (`query_prometheus`) are in `main`. Tests + CI land next.
 
 ---
 
@@ -49,11 +49,14 @@ Exposing tools to an AI is not the same as exposing them to a logged-in human. T
 
 ## Tools (v1)
 
-| Tool | Inputs | Output | Safety bound |
-|------|--------|--------|--------------|
-| `query_prometheus` | `promql` (string) | metric series | 5s timeout, ≤1000 points |
-| `get_pod_logs` | `namespace`, `pod`, `lines` (≤500) | log lines | hard cap 500 lines, ≤30s window |
-| `describe_deployment` | `namespace`, `name` | replicas, status, last rollout | metadata only, no spec dump |
+| Tool | Inputs | Output | Safety bound | Status |
+|------|--------|--------|--------------|--------|
+| `query_prometheus` | `promql` (string) | Prometheus instant-query result (`vector` / `scalar` / `string` / `matrix`) | 5s read timeout, ≤1000 result series | shipped |
+| `query_prometheus_range` | `promql`, `start`, `end`, `step` | range result (`matrix`) | 5s read timeout, points-per-series cap | follow-up |
+| `get_pod_logs` | `namespace`, `pod`, `lines` (≤500) | log lines | hard cap 500 lines, ≤30s window | planned |
+| `describe_deployment` | `namespace`, `name` | replicas, status, last rollout | metadata only, no spec dump | planned |
+
+**On the cap:** `query_prometheus` rejects a result with more than the configured `prometheus.tool.max-series` (default 1000) rather than truncating. Silent truncation lets an AI confidently act on partial data; an explicit error tells it to narrow the query with stricter label matchers or an aggregation. Configure via `prometheus.tool.max-series`.
 
 ## Authentication
 
@@ -89,9 +92,24 @@ VALUES (encode(sha256('mcp_…'::bytea), 'hex'), 'ci-runner', 'github-actions', 
 
 ## Roadmap
 
-- [ ] **Week of Jun 2** — Scaffold, MCP protocol handler, `query_prometheus`, API-key auth, first tests
-- [ ] **Week of Jun 9** — K8s tools, Postgres audit log, Docker, GitHub Actions CI, Micrometer metrics, README polish
-- [ ] **Stretch** — Quarkus native image build, Helm chart, OAuth2 instead of API key
+**Shipped**
+- [x] Quarkus 3.35 / Java 21 scaffold with REST, Panache, Flyway, Micrometer, OpenAPI
+- [x] Postgres audit log (Flyway-managed schema, JSONB args, indexed by caller and time)
+- [x] JSON-RPC 2.0 dispatcher + Tool SPI (`initialize`, `tools/list`, `tools/call`)
+- [x] Bearer-token auth on `/mcp` (SHA-256 hashed, `principal`-attributed audit rows)
+- [x] First bounded tool: `query_prometheus` (instant)
+
+**Next**
+- [ ] JUnit + Quarkus Test + Testcontainers — auth 401 paths, dispatcher round-trip, tool cap enforcement
+- [ ] OpenAPI polish: `Authorization` security scheme so Swagger-UI "Try it out" works with a bearer token
+- [ ] `query_prometheus_range`, then K8s tools (`get_pod_logs`, `describe_deployment`)
+- [ ] Per-client rate limiting
+- [ ] Docker image + GitHub Actions CI
+
+**Stretch**
+- [ ] Quarkus native image build
+- [ ] Helm chart
+- [ ] OAuth2 / OIDC instead of static API keys
 
 ## Non-goals (v1)
 
