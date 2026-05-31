@@ -16,5 +16,19 @@ services:
       timeout: 3s
       retries: 10
 
+  # Demo Prometheus. Scrapes itself and the host-running Quarkus app so the
+  # query_prometheus MCP tool has real data to query (see monitoring/prometheus.yml).
+  prometheus:
+    image: prom/prometheus:v3.1.0
+    container_name: mcp-prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
 volumes:
   mcp_pg_data:

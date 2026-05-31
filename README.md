@@ -2,7 +2,7 @@
 
 > Production-grade MCP server in Quarkus — safely expose your observability stack to AI assistants.
 
-**Status:** Active development (May 2026). MCP dispatcher, bearer-token auth, Postgres audit log, and the first bounded tool (`query_prometheus`) are in `main`. Tests + CI land next.
+**Status:** Active development (May 2026). MCP dispatcher, bearer-token auth, Postgres audit log, and the first bounded tool (`query_prometheus`) are in `main`, covered by an integration test suite that runs against a real Postgres (Testcontainers). CI lands next.
 
 ---
 
@@ -77,6 +77,62 @@ INSERT INTO api_keys (key_hash, principal, label, created_at, revoked)
 VALUES (encode(sha256('mcp_…'::bytea), 'hex'), 'ci-runner', 'github-actions', now(), false);
 ```
 
+## Live demo
+
+The compose stack ships a Prometheus that scrapes **both itself and this server** (`monitoring/prometheus.yml`), so `query_prometheus` has real data to hit out of the box. End to end:
+
+```bash
+docker compose up -d          # Postgres + Prometheus
+mvn quarkus:dev               # seeds a known dev API key and prints it
+#   ... Seeded dev API key. Authenticate with: Authorization: Bearer mcp_dev_local_do_not_use_in_prod
+```
+
+**Auth is enforced** — no token, no entry:
+
+```console
+$ curl -s -o /dev/null -w '%{http_code}\n' -X POST localhost:8080/mcp \
+       -H 'Content-Type: application/json' \
+       -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
+401
+```
+
+**Call the tool over MCP** (`tools/call`). Prometheus is scraping itself *and* this server, so `up` comes back with both targets healthy:
+
+```console
+$ curl -s -X POST localhost:8080/mcp \
+       -H 'Authorization: Bearer mcp_dev_local_do_not_use_in_prod' \
+       -H 'Content-Type: application/json' \
+       -d '{"jsonrpc":"2.0","id":2,"method":"tools/call",
+            "params":{"name":"query_prometheus","arguments":{"promql":"up"}}}'
+{
+  "jsonrpc": "2.0",
+  "id": 2,
+  "result": {
+    "content": [{ "type": "text", "text": "{
+      \"resultType\": \"vector\",
+      \"result\": [
+        { \"metric\": {\"__name__\":\"up\",\"job\":\"quarkus-mcp\",\"instance\":\"host.docker.internal:8080\"}, \"value\": [t, \"1\"] },
+        { \"metric\": {\"__name__\":\"up\",\"job\":\"prometheus\",\"instance\":\"localhost:9090\"},      \"value\": [t, \"1\"] }
+      ]
+    }" }],
+    "isError": false
+  }
+}
+```
+
+**Every call is audited.** That one invocation wrote a row attributed to the token's principal:
+
+```console
+$ docker exec mcp-postgres psql -U mcp -d mcp \
+       -c "SELECT caller, tool, status, latency_ms, result_size, args
+           FROM audit_log ORDER BY id DESC LIMIT 1;"
+  caller   |       tool       | status | latency_ms | result_size |       args
+-----------+------------------+--------+------------+-------------+------------------
+ dev-local | query_prometheus | OK     |        248 |         526 | {"promql": "up"}
+```
+
+`caller` is the `principal` bound to the bearer key — not a guess — so a misused key traces to one identity. `latency_ms` and `result_size` ride along on every audit row, giving per-call cost/latency visibility for free.
+
 ## Stack
 
 | Layer | Choice | Why |
@@ -98,10 +154,10 @@ VALUES (encode(sha256('mcp_…'::bytea), 'hex'), 'ci-runner', 'github-actions', 
 - [x] JSON-RPC 2.0 dispatcher + Tool SPI (`initialize`, `tools/list`, `tools/call`)
 - [x] Bearer-token auth on `/mcp` (SHA-256 hashed, `principal`-attributed audit rows)
 - [x] First bounded tool: `query_prometheus` (instant)
+- [x] JUnit + Quarkus Test + Testcontainers — auth 401 paths, dispatcher round-trip, tool cap enforcement
+- [x] OpenAPI polish: `bearer-key` security scheme so Swagger-UI "Try it out" works with a bearer token
 
 **Next**
-- [ ] JUnit + Quarkus Test + Testcontainers — auth 401 paths, dispatcher round-trip, tool cap enforcement
-- [ ] OpenAPI polish: `Authorization` security scheme so Swagger-UI "Try it out" works with a bearer token
 - [ ] `query_prometheus_range`, then K8s tools (`get_pod_logs`, `describe_deployment`)
 - [ ] Per-client rate limiting
 - [ ] Docker image + GitHub Actions CI

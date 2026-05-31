@@ -1,0 +1,17 @@
+# Demo scrape config. Prometheus scrapes itself plus the Quarkus MCP server's
+# Micrometer endpoint (the app runs on the host during `quarkus:dev`, reachable
+# from this container via host.docker.internal). Short interval so the app target
+# turns "up" quickly after you start the server.
+global:
+  scrape_interval: 5s
+  evaluation_interval: 5s
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  - job_name: quarkus-mcp
+    metrics_path: /q/metrics
+    static_configs:
+      - targets: ["host.docker.internal:8080"]
