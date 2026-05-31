@@ -33,7 +33,12 @@ public class ApiKeyAuthFilter implements ContainerRequestFilter {
 
     @Override
     public void filter(ContainerRequestContext ctx) {
+        // UriInfo.getPath() includes a leading slash under Quarkus REST but not under every
+        // JAX-RS runtime — normalize it before matching so the guard can't silently skip auth.
         String path = ctx.getUriInfo().getPath();
+        if (path.startsWith("/")) {
+            path = path.substring(1);
+        }
         if (!path.startsWith("mcp")) {
             return;
         }

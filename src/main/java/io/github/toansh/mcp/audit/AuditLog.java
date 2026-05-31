@@ -1,8 +1,11 @@
 package io.github.toansh.mcp.audit;
 
-import io.quarkus.hibernate.orm.panache.PanacheEntity;
+import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
 import jakarta.persistence.Index;
 import jakarta.persistence.Table;
 import org.hibernate.annotations.JdbcTypeCode;
@@ -17,7 +20,12 @@ import java.util.Map;
         @Index(name = "idx_audit_caller_created_at", columnList = "caller, created_at DESC"),
         @Index(name = "idx_audit_created_at", columnList = "created_at DESC")
 })
-public class AuditLog extends PanacheEntity {
+public class AuditLog extends PanacheEntityBase {
+
+    // IDENTITY matches the BIGSERIAL column in V1__create_audit_log.sql; the DB owns id generation.
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    public Long id;
 
     @Column(name = "created_at", nullable = false)
     public Instant createdAt;
