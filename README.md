@@ -23,7 +23,7 @@ When an on-call engineer asks Claude *"why is order-service slow right now?"*, t
 Exposing tools to an AI is not the same as exposing them to a logged-in human. The AI may act on prompt-injected instructions, may run tools in unexpected sequences, and is not accountable for impact. This server is built around three rules:
 
 1. **Read-only by default.** All v1 tools are queries. No state-mutation surface.
-2. **Bounded by construction.** Every tool enforces query timeout, result size limit, and per-client rate limit.
+2. **Bounded by construction.** Each tool enforces a query timeout and a result-size limit, and the server caps every client's request rate. Nothing runs unboundedly.
 3. **Fully audited.** Every tool call writes a Postgres audit row (caller, tool, arguments, result size, latency, status). Audit is not optional.
 
 ## Architecture
@@ -78,6 +78,18 @@ Tokens are random 32-byte secrets prefixed with `mcp_` (GitHub-style, so secret 
 INSERT INTO api_keys (key_hash, principal, label, created_at, revoked)
 VALUES (encode(sha256('mcp_…'::bytea), 'hex'), 'ci-runner', 'github-actions', now(), false);
 ```
+
+## Rate limiting
+
+Every authenticated client gets a **token bucket** keyed by its API-key `principal`. `burst` is the bucket size (how many requests a client can fire back-to-back); `requests-per-minute` is the sustained refill rate. When a client drains its bucket, `/mcp` returns **HTTP 429** with a `Retry-After` header and a structured error body — *before any tool runs* — and increments `mcp_ratelimit_rejected_total`, so throttling shows up on the server's own Prometheus scrape.
+
+```
+mcp.rate-limit.enabled=true
+mcp.rate-limit.requests-per-minute=60
+mcp.rate-limit.burst=20
+```
+
+The buckets are in-memory, which is the right call for a single self-hosted server — no extra dependency on the hot path. Running multiple replicas would move the counters to a shared store (e.g. Redis) so the limit holds cluster-wide rather than per-instance: a deliberate v1 trade-off, not an oversight.
 
 ## Live demo
 
@@ -159,10 +171,10 @@ $ docker exec mcp-postgres psql -U mcp -d mcp \
 - [x] JUnit + Quarkus Test + Testcontainers — auth 401 paths, dispatcher round-trip, tool cap enforcement
 - [x] OpenAPI polish: `bearer-key` security scheme so Swagger-UI "Try it out" works with a bearer token
 - [x] GitHub Actions CI — build + full test suite (with Dev Services Postgres) on every push and PR
+- [x] Per-client rate limiting — token bucket per principal, 429 + `Retry-After`, rejection metric
 
 **Next**
 - [ ] `query_prometheus_range`, then K8s tools (`get_pod_logs`, `describe_deployment`)
-- [ ] Per-client rate limiting
 - [ ] Docker image + container registry push
 
 **Stretch**
