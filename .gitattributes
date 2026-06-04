@@ -1,0 +1,5 @@
+# Keep the Maven wrapper shell script LF so it runs on Linux CI runners.
+mvnw text eol=lf
+*.sh text eol=lf
+# Windows batch scripts must stay CRLF.
+*.cmd text eol=crlf

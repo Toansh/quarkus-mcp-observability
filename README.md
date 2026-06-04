@@ -2,7 +2,9 @@
 
 > Production-grade MCP server in Quarkus — safely expose your observability stack to AI assistants.
 
-**Status:** Active development (May 2026). MCP dispatcher, bearer-token auth, Postgres audit log, and the first bounded tool (`query_prometheus`) are in `main`, covered by an integration test suite that runs against a real Postgres (Testcontainers). CI lands next.
+[![CI](https://github.com/Toansh/quarkus-mcp-observability/actions/workflows/ci.yml/badge.svg)](https://github.com/Toansh/quarkus-mcp-observability/actions/workflows/ci.yml)
+
+**Status:** Active development (May 2026). MCP dispatcher, bearer-token auth, Postgres audit log, and the first bounded tool (`query_prometheus`) are in `main`, covered by an integration test suite that runs against a real Postgres (Testcontainers) on every push via GitHub Actions.
 
 ---
 
@@ -156,11 +158,12 @@ $ docker exec mcp-postgres psql -U mcp -d mcp \
 - [x] First bounded tool: `query_prometheus` (instant)
 - [x] JUnit + Quarkus Test + Testcontainers — auth 401 paths, dispatcher round-trip, tool cap enforcement
 - [x] OpenAPI polish: `bearer-key` security scheme so Swagger-UI "Try it out" works with a bearer token
+- [x] GitHub Actions CI — build + full test suite (with Dev Services Postgres) on every push and PR
 
 **Next**
 - [ ] `query_prometheus_range`, then K8s tools (`get_pod_logs`, `describe_deployment`)
 - [ ] Per-client rate limiting
-- [ ] Docker image + GitHub Actions CI
+- [ ] Docker image + container registry push
 
 **Stretch**
 - [ ] Quarkus native image build
