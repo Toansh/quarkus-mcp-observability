@@ -1,5 +1,12 @@
-*
-!target/*-runner
-!target/*-runner.jar
-!target/lib/*
-!target/quarkus-app/*
+# Multi-stage build compiles from source, so the context needs pom.xml + src/.
+# Exclude everything that isn't an input to the build.
+target/
+.git/
+.github/
+.idea/
+*.iml
+*.log
+.commit-msg.txt
+monitoring/
+docker-compose.yml
+README.md

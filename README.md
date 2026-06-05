@@ -3,6 +3,7 @@
 > Production-grade MCP server in Quarkus — safely expose your observability stack to AI assistants.
 
 [![CI](https://github.com/Toansh/quarkus-mcp-observability/actions/workflows/ci.yml/badge.svg)](https://github.com/Toansh/quarkus-mcp-observability/actions/workflows/ci.yml)
+[![Publish image](https://github.com/Toansh/quarkus-mcp-observability/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/Toansh/quarkus-mcp-observability/actions/workflows/docker-publish.yml)
 
 **Status:** Active development (May 2026). MCP dispatcher, bearer-token auth, Postgres audit log, and the first bounded tool (`query_prometheus`) are in `main`, covered by an integration test suite that runs against a real Postgres (Testcontainers) on every push via GitHub Actions.
 
@@ -147,6 +148,26 @@ $ docker exec mcp-postgres psql -U mcp -d mcp \
 
 `caller` is the `principal` bound to the bearer key — not a guess — so a misused key traces to one identity. `latency_ms` and `result_size` ride along on every audit row, giving per-call cost/latency visibility for free.
 
+## Container image
+
+Every push to `main` publishes a JVM image to the GitHub Container Registry (the `Publish image` workflow). It's a multi-stage build — Maven → `eclipse-temurin:21-jre`, running as a non-root user.
+
+```bash
+docker pull ghcr.io/toansh/quarkus-mcp-observability:latest
+```
+
+The server needs a Postgres (and, for `query_prometheus`, a reachable Prometheus). Point it at them with env vars — config keys map to `UPPER_SNAKE_CASE`:
+
+```bash
+docker run --rm -p 8080:8080 \
+  -e QUARKUS_DATASOURCE_JDBC_URL=jdbc:postgresql://host.docker.internal:5432/mcp \
+  -e QUARKUS_DATASOURCE_USERNAME=mcp -e QUARKUS_DATASOURCE_PASSWORD=mcp \
+  -e PROMETHEUS_URL=http://host.docker.internal:9090 \
+  ghcr.io/toansh/quarkus-mcp-observability:latest
+```
+
+The image runs Quarkus's `prod` profile, so there is **no** dev-seeded key — insert one with the SQL in [Authentication](#authentication) before calling `/mcp`. Tags: `latest` and `sha-<short>` per `main` build, plus `vX.Y.Z` on release tags.
+
 ## Stack
 
 | Layer | Choice | Why |
@@ -172,10 +193,11 @@ $ docker exec mcp-postgres psql -U mcp -d mcp \
 - [x] OpenAPI polish: `bearer-key` security scheme so Swagger-UI "Try it out" works with a bearer token
 - [x] GitHub Actions CI — build + full test suite (with Dev Services Postgres) on every push and PR
 - [x] Per-client rate limiting — token bucket per principal, 429 + `Retry-After`, rejection metric
+- [x] `query_prometheus_range` — bounded range queries (total-samples cap)
+- [x] Docker image published to GHCR on every `main` push (multi-stage, non-root)
 
 **Next**
-- [ ] `query_prometheus_range`, then K8s tools (`get_pod_logs`, `describe_deployment`)
-- [ ] Docker image + container registry push
+- [ ] K8s tools (`get_pod_logs`, `describe_deployment`)
 
 **Stretch**
 - [ ] Quarkus native image build
