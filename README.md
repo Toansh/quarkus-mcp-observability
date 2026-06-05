@@ -53,12 +53,12 @@ Exposing tools to an AI is not the same as exposing them to a logged-in human. T
 
 | Tool | Inputs | Output | Safety bound | Status |
 |------|--------|--------|--------------|--------|
-| `query_prometheus` | `promql` (string) | Prometheus instant-query result (`vector` / `scalar` / `string` / `matrix`) | 5s read timeout, ≤1000 result series | shipped |
-| `query_prometheus_range` | `promql`, `start`, `end`, `step` | range result (`matrix`) | 5s read timeout, points-per-series cap | follow-up |
+| `query_prometheus` | `promql` (string) | Prometheus instant-query result (`vector` / `scalar` / `string`) | 5s read timeout, ≤1000 result series | shipped |
+| `query_prometheus_range` | `promql`, `start`, `end`, `step` | range result (`matrix`) | 5s read timeout, ≤11000 total samples (series × points) | shipped |
 | `get_pod_logs` | `namespace`, `pod`, `lines` (≤500) | log lines | hard cap 500 lines, ≤30s window | planned |
 | `describe_deployment` | `namespace`, `name` | replicas, status, last rollout | metadata only, no spec dump | planned |
 
-**On the cap:** `query_prometheus` rejects a result with more than the configured `prometheus.tool.max-series` (default 1000) rather than truncating. Silent truncation lets an AI confidently act on partial data; an explicit error tells it to narrow the query with stricter label matchers or an aggregation. Configure via `prometheus.tool.max-series`.
+**On the cap:** `query_prometheus` rejects a result with more than the configured `prometheus.tool.max-series` (default 1000) rather than truncating. Silent truncation lets an AI confidently act on partial data; an explicit error tells it to narrow the query with stricter label matchers or an aggregation. `query_prometheus_range` applies the same reject-don't-truncate rule to *total samples* — series × points across the window — via `prometheus.tool.range.max-samples` (default 11000), since a range payload grows with both series count and step resolution.
 
 ## Authentication
 

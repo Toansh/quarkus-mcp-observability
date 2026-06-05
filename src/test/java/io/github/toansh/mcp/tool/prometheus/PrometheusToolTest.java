@@ -174,5 +174,10 @@ class PrometheusToolTest {
             }
             return next;
         }
+
+        @Override
+        public PromResponse rangeQuery(String promql, String start, String end, String step) {
+            throw new UnsupportedOperationException("instant-only stub");
+        }
     }
 }

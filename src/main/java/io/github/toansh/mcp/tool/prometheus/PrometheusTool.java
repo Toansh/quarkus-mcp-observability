@@ -1,6 +1,5 @@
 package io.github.toansh.mcp.tool.prometheus;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -19,7 +18,7 @@ import org.jboss.logging.Logger;
  * read-only, hard timeout (set on the REST client), hard result-size cap (here),
  * and audited (by the dispatcher).
  *
- * <p>v1 supports instant queries only. Range queries land in a follow-up D.
+ * <p>Instant queries only ({@code /api/v1/query}); see {@link PrometheusRangeTool} for ranges.
  */
 @ApplicationScoped
 public class PrometheusTool implements Tool {
@@ -75,15 +74,14 @@ public class PrometheusTool implements Tool {
         } catch (WebApplicationException e) {
             int status = e.getResponse() == null ? -1 : e.getResponse().getStatus();
             LOG.warnf("Prometheus returned HTTP %d for query %s", status, promql);
-            return ToolResult.error("Prometheus returned HTTP " + status + ".");
+            return PromSupport.httpError(status);
         } catch (ProcessingException e) {
             LOG.warnf(e, "Prometheus call failed (network/timeout) for query %s", promql);
-            return ToolResult.error("Prometheus call failed: " + rootMessage(e)
-                    + ". The 5s timeout may have been exceeded — try a cheaper query.");
+            return PromSupport.timeoutError(e);
         }
 
         if (!response.isSuccess()) {
-            return ToolResult.error("Prometheus rejected the query (" + response.errorType() + "): " + response.error());
+            return PromSupport.envelopeError(response);
         }
 
         JsonNode result = response.data() == null ? null : response.data().result();
@@ -94,26 +92,6 @@ public class PrometheusTool implements Tool {
                     + "or an aggregation (e.g. wrap in `sum by(...)`).");
         }
 
-        return ToolResult.ofText(formatResult(response));
-    }
-
-    private String formatResult(PromResponse response) {
-        try {
-            return mapper.writerWithDefaultPrettyPrinter().writeValueAsString(response.data());
-        } catch (JsonProcessingException e) {
-            return "{\"resultType\":\"" + safe(response.data().resultType()) + "\",\"result\":\"<serialization-failed>\"}";
-        }
-    }
-
-    private static String rootMessage(Throwable t) {
-        Throwable cur = t;
-        while (cur.getCause() != null && cur.getCause() != cur) {
-            cur = cur.getCause();
-        }
-        return cur.getClass().getSimpleName() + ": " + cur.getMessage();
-    }
-
-    private static String safe(String s) {
-        return s == null ? "" : s.replace("\"", "\\\"");
+        return ToolResult.ofText(PromSupport.formatResult(response, mapper));
     }
 }

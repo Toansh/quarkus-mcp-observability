@@ -58,7 +58,8 @@ class McpDispatcherTest {
                 .then()
                 .statusCode(200)
                 .body("result.tools.name", hasItem("echo"))
-                .body("result.tools.name", hasItem("query_prometheus"));
+                .body("result.tools.name", hasItem("query_prometheus"))
+                .body("result.tools.name", hasItem("query_prometheus_range"));
     }
 
     @Test
