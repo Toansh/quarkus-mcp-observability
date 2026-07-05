@@ -56,10 +56,10 @@ Exposing tools to an AI is not the same as exposing them to a logged-in human. T
 |------|--------|--------|--------------|--------|
 | `query_prometheus` | `promql` (string) | Prometheus instant-query result (`vector` / `scalar` / `string`) | 5s read timeout, ≤1000 result series | shipped |
 | `query_prometheus_range` | `promql`, `start`, `end`, `step` | range result (`matrix`) | 5s read timeout, ≤11000 total samples (series × points) | shipped |
-| `get_pod_logs` | `namespace`, `pod`, `lines` (≤500) | log lines | hard cap 500 lines, ≤30s window | planned |
-| `describe_deployment` | `namespace`, `name` | replicas, status, last rollout | metadata only, no spec dump | planned |
+| `get_pod_logs` | `namespace`, `pod`, `lines` (≤1000) | log lines | hard cap 1000 lines | shipped |
+| `describe_deployment` | `namespace`, `name` | replicas, status, last rollout | metadata only | shipped |
 
-**On the cap:** `query_prometheus` rejects a result with more than the configured `prometheus.tool.max-series` (default 1000) rather than truncating. Silent truncation lets an AI confidently act on partial data; an explicit error tells it to narrow the query with stricter label matchers or an aggregation. `query_prometheus_range` applies the same reject-don't-truncate rule to *total samples* — series × points across the window — via `prometheus.tool.range.max-samples` (default 11000), since a range payload grows with both series count and step resolution.
+**On the cap:** `query_prometheus` rejects a result with more than the configured `prometheus.tool.max-series` (default 1000) rather than truncating. Silent truncation lets an AI confidently act on partial data; an explicit error tells it to narrow the query with stricter label matchers or an aggregation. `query_prometheus_range` applies the same reject-don't-truncate rule to *total samples* — series × points across the window — via `prometheus.tool.range.max-samples` (default 11000), since a range payload grows with both series count and step resolution. `get_pod_logs` is capped at 1000 lines (configurable, defaults to 100).
 
 ## Authentication
 
@@ -79,6 +79,17 @@ Tokens are random 32-byte secrets prefixed with `mcp_` (GitHub-style, so secret 
 INSERT INTO api_keys (key_hash, principal, label, created_at, revoked)
 VALUES (encode(sha256('mcp_…'::bytea), 'hex'), 'ci-runner', 'github-actions', now(), false);
 ```
+
+### OAuth2 / OIDC (Dynamic Authentication)
+For enterprise SSO and identity-aware AI assistants, the server supports **hybrid authentication**: both static API keys and OAuth2 / OpenID Connect (OIDC) Access Tokens (JWTs). When OIDC is enabled, incoming JWT bearer tokens are validated against your OIDC provider's JWKS endpoint, and the JWT subject/principal is automatically recorded as the `caller` in every audit row and rate-limiter bucket.
+
+```bash
+# Enable OIDC in production via environment variables:
+export QUARKUS_OIDC_ENABLED=true
+export QUARKUS_OIDC_AUTH_SERVER_URL=https://keycloak.example.com/realms/mcp
+export QUARKUS_OIDC_CLIENT_ID=quarkus-mcp-observability
+```
+If OIDC is disabled (default in dev/test) or the bearer token is not a JWT, the server seamlessly falls back to checking static API keys in PostgreSQL.
 
 ## Rate limiting
 
@@ -150,10 +161,11 @@ $ docker exec mcp-postgres psql -U mcp -d mcp \
 
 ## Container image
 
-Every push to `main` publishes a JVM image to the GitHub Container Registry (the `Publish image` workflow). It's a multi-stage build — Maven → `eclipse-temurin:21-jre`, running as a non-root user.
+Every push to `main` publishes both a JVM image and a GraalVM/Mandrel **native executable image** to the GitHub Container Registry (the `Publish image` workflow). Both are multi-stage builds running as non-root users.
 
 ```bash
 docker pull ghcr.io/toansh/quarkus-mcp-observability:latest
+docker pull ghcr.io/toansh/quarkus-mcp-observability:latest-native  # Standalone native image (~30ms startup)
 ```
 
 The server needs a Postgres (and, for `query_prometheus`, a reachable Prometheus). Point it at them with env vars — config keys map to `UPPER_SNAKE_CASE`:
@@ -195,14 +207,14 @@ The image runs Quarkus's `prod` profile, so there is **no** dev-seeded key — i
 - [x] Per-client rate limiting — token bucket per principal, 429 + `Retry-After`, rejection metric
 - [x] `query_prometheus_range` — bounded range queries (total-samples cap)
 - [x] Docker image published to GHCR on every `main` push (multi-stage, non-root)
+- [x] K8s tools (`get_pod_logs`, `describe_deployment`)
+- [x] Helm chart (RBAC-enabled for K8s observability)
+- [x] Quarkus native image build (GraalVM / Mandrel native compilation, multi-stage native Dockerfile, native IT suite)
+- [x] OAuth2 / OIDC instead of static API keys (hybrid OIDC + static API key support, JWKS verification)
 
-**Next**
-- [ ] K8s tools (`get_pod_logs`, `describe_deployment`)
-
-**Stretch**
-- [ ] Quarkus native image build
-- [ ] Helm chart
-- [ ] OAuth2 / OIDC instead of static API keys
+**Next (v2)**
+- [ ] Dynamic tool registry / plugin architecture
+- [ ] Multi-cluster Kubernetes observability support
 
 ## Non-goals (v1)
 

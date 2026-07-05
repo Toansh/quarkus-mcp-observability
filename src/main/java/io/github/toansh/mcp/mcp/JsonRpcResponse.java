@@ -3,7 +3,9 @@ package io.github.toansh.mcp.mcp;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.JsonNode;
+import io.quarkus.runtime.annotations.RegisterForReflection;
 
+@RegisterForReflection
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record JsonRpcResponse(
         @JsonProperty("jsonrpc") String jsonrpc,
@@ -20,6 +22,7 @@ public record JsonRpcResponse(
         return new JsonRpcResponse("2.0", id, null, new Error(code, message, null));
     }
 
+    @RegisterForReflection
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record Error(int code, String message, Object data) {}
 }

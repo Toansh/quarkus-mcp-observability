@@ -1,9 +1,12 @@
 package io.github.toansh.mcp.tool;
 
+import io.quarkus.runtime.annotations.RegisterForReflection;
 import java.util.List;
 
+@RegisterForReflection
 public record ToolResult(List<Content> content, boolean isError) {
 
+    @RegisterForReflection
     public record Content(String type, String text) {
         public static Content text(String text) {
             return new Content("text", text);

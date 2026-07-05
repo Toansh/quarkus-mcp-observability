@@ -1,0 +1,30 @@
+{{- if .Values.rbac.create -}}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "github-automater.fullname" . }}-observer
+  labels:
+    {{- include "github-automater.labels" . | nindent 4 }}
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "pods/log"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "github-automater.fullname" . }}-observer-binding
+  labels:
+    {{- include "github-automater.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "github-automater.fullname" . }}-observer
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "github-automater.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
+{{- end }}

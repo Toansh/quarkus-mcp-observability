@@ -1,5 +1,6 @@
 package io.github.toansh.mcp.auth;
 
+import io.quarkus.security.identity.SecurityIdentity;
 import jakarta.annotation.Priority;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.Priorities;
@@ -14,10 +15,12 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * Enforces bearer-token auth on /mcp. /q/* (health, metrics, openapi, swagger-ui) is left open.
+ * Enforces hybrid bearer-token auth on /mcp (supporting both OAuth2/OIDC JWT tokens and static API keys).
+ * /q/* (health, metrics, openapi, swagger-ui) is left open.
  *
- * <p>Rationale: a single hand-rolled filter is more transparent in a portfolio repo than wiring
- * quarkus-security's HttpAuthenticationMechanism + IdentityProvider stack for a one-scheme API.
+ * <p>When OIDC is enabled in production, valid JWT access tokens are verified via JWKS and their subject/principal
+ * is used as the audit caller. If OIDC is disabled or the token is not a JWT, falls back to checking SHA-256
+ * hashed static API keys (mcp_*) in PostgreSQL.
  */
 @Provider
 @Priority(Priorities.AUTHENTICATION)
@@ -31,6 +34,9 @@ public class ApiKeyAuthFilter implements ContainerRequestFilter {
     @Inject
     Caller caller;
 
+    @Inject
+    SecurityIdentity identity;
+
     @Override
     public void filter(ContainerRequestContext ctx) {
         // UriInfo.getPath() includes a leading slash under Quarkus REST but not under every
@@ -41,6 +47,16 @@ public class ApiKeyAuthFilter implements ContainerRequestFilter {
         }
         if (!path.startsWith("mcp")) {
             return;
+        }
+
+        // If Quarkus OIDC is enabled and has already successfully authenticated the bearer token
+        // (e.g. valid OAuth2 / OIDC Access Token / JWT), use the OIDC principal as caller identity.
+        if (identity != null && !identity.isAnonymous()) {
+            String oidcPrincipal = identity.getPrincipal().getName();
+            if (oidcPrincipal != null && !oidcPrincipal.isBlank()) {
+                caller.setPrincipal(oidcPrincipal);
+                return;
+            }
         }
 
         String header = ctx.getHeaderString(HttpHeaders.AUTHORIZATION);

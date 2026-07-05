@@ -1,11 +1,13 @@
 package io.github.toansh.mcp.auth;
 
+import io.quarkus.runtime.annotations.RegisterForReflection;
 import jakarta.enterprise.context.RequestScoped;
 
 /**
  * Holds the authenticated principal for the current request. Populated by {@link ApiKeyAuthFilter}
  * before the JAX-RS resource method runs, then injected into {@code McpResource}.
  */
+@RegisterForReflection
 @RequestScoped
 public class Caller {
 

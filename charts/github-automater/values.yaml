@@ -1,0 +1,95 @@
+replicaCount: 1
+
+image:
+  repository: ghcr.io/toansh/quarkus-mcp-observability
+  pullPolicy: IfNotPresent
+  # Overridden by appVersion in Chart.yaml
+  tag: ""
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+rbac:
+  # Create ClusterRole and ClusterRoleBinding for the app to read K8s resources
+  # Required for describe_deployment and get_pod_logs tools.
+  create: true
+
+podAnnotations: {}
+
+podSecurityContext: {}
+  # fsGroup: 2000
+
+securityContext:
+  capabilities:
+    drop:
+    - ALL
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 1000
+
+service:
+  type: ClusterIP
+  port: 80
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: chart-example.local
+      paths:
+        - path: /
+          pathType: ImplementationSpecific
+  tls: []
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 200m
+    memory: 256Mi
+
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 80
+
+# Application Configuration
+config:
+  prometheus:
+    url: "http://prometheus-server.monitoring.svc.cluster.local"
+    maxSeries: 1000
+    rangeMaxSamples: 11000
+  rateLimit:
+    enabled: true
+    requestsPerMinute: 60
+    burst: 20
+
+# Database Configuration (Postgres)
+# Expects a secret named 'github-automater-db' with keys:
+# db-url, db-username, db-password
+database:
+  secretName: "github-automater-db"
+  external:
+    enabled: true
+    # If external is true, these are just documentation
+    # The app expects QUARKUS_DATASOURCE_JDBC_URL from the secret.
+
+# Liveness and Readiness probes
+probes:
+  liveness:
+    path: /q/health/live
+  readiness:
+    path: /q/health/ready
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

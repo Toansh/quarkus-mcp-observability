@@ -28,10 +28,10 @@ import jakarta.ws.rs.core.Application;
         securitySchemeName = "bearer-key",
         type = SecuritySchemeType.HTTP,
         scheme = "bearer",
-        bearerFormat = "mcp",
+        bearerFormat = "mcp / JWT",
         in = SecuritySchemeIn.HEADER,
-        description = "API key issued by the operator. Format: `mcp_<random>`. "
-                + "Stored on the server as SHA-256(token)."
+        description = "API key issued by the operator (`mcp_<random>`) OR OAuth2/OIDC Access Token (JWT). "
+                + "Static keys are stored as SHA-256(token); JWTs are verified via JWKS."
 )
 public class OpenApiConfig extends Application {
 }
