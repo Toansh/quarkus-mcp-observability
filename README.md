@@ -50,16 +50,19 @@ Exposing tools to an AI is not the same as exposing them to a logged-in human. T
   Prometheus   │   Kubernetes API
 ```
 
-## Tools (v1)
+## Tools
 
 | Tool | Inputs | Output | Safety bound | Status |
 |------|--------|--------|--------------|--------|
 | `query_prometheus` | `promql` (string) | Prometheus instant-query result (`vector` / `scalar` / `string`) | 5s read timeout, ≤1000 result series | shipped |
 | `query_prometheus_range` | `promql`, `start`, `end`, `step` | range result (`matrix`) | 5s read timeout, ≤11000 total samples (series × points) | shipped |
+| `get_firing_alerts` | `state` (`firing`/`pending`), `severity` | active Prometheus alerts | read-only, filtered by state/severity | shipped (v2) |
 | `get_pod_logs` | `namespace`, `pod`, `lines` (≤1000) | log lines | hard cap 1000 lines | shipped |
 | `describe_deployment` | `namespace`, `name` | replicas, status, last rollout | metadata only | shipped |
+| `get_cluster_events` | `namespace`, `type`, `limit` (≤100) | K8s warning/error events | hard cap 100 events | shipped (v2) |
+| `get_node_status` | `nodeName` (optional) | Node readiness, CPU/memory capacity, pressure conditions | read-only metadata | shipped (v2) |
 
-**On the cap:** `query_prometheus` rejects a result with more than the configured `prometheus.tool.max-series` (default 1000) rather than truncating. Silent truncation lets an AI confidently act on partial data; an explicit error tells it to narrow the query with stricter label matchers or an aggregation. `query_prometheus_range` applies the same reject-don't-truncate rule to *total samples* — series × points across the window — via `prometheus.tool.range.max-samples` (default 11000), since a range payload grows with both series count and step resolution. `get_pod_logs` is capped at 1000 lines (configurable, defaults to 100).
+**On the cap:** `query_prometheus` rejects a result with more than the configured `prometheus.tool.max-series` (default 1000) rather than truncating. Silent truncation lets an AI confidently act on partial data; an explicit error tells it to narrow the query with stricter label matchers or an aggregation. `query_prometheus_range` applies the same reject-don't-truncate rule to *total samples* — series × points across the window — via `prometheus.tool.range.max-samples` (default 11000), since a range payload grows with both series count and step resolution. `get_pod_logs` is capped at 1000 lines (configurable, defaults to 100). `get_cluster_events` is capped at 100 events (default 50).
 
 ## Authentication
 
@@ -211,6 +214,7 @@ The image runs Quarkus's `prod` profile, so there is **no** dev-seeded key — i
 - [x] Helm chart (RBAC-enabled for K8s observability)
 - [x] Quarkus native image build (GraalVM / Mandrel native compilation, multi-stage native Dockerfile, native IT suite)
 - [x] OAuth2 / OIDC instead of static API keys (hybrid OIDC + static API key support, JWKS verification)
+- [x] SRE Diagnostic Tools (v2) — `get_firing_alerts`, `get_cluster_events`, and `get_node_status`
 
 **Next (v2)**
 - [ ] Dynamic tool registry / plugin architecture

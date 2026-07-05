@@ -29,4 +29,8 @@ public interface PrometheusClient {
                             @QueryParam("start") String start,
                             @QueryParam("end") String end,
                             @QueryParam("step") String step);
+
+    @GET
+    @Path("/api/v1/alerts")
+    AlertsResponse alerts();
 }
